@@ -1,0 +1,19 @@
+{
+  "expo": {
+    "name": "VigilPulse PW-HEWS",
+    "slug": "vigilpulse-pilot",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "org.vigilpulse.pwhews.pilot"
+    },
+    "android": {
+      "package": "org.vigilpulse.pwhews.pilot"
+    },
+    "web": {
+      "bundler": "metro"
+    }
+  }
+}
