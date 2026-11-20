@@ -12,29 +12,65 @@ jobs:
   build-android-apk:
     name: Compile & Attach Downloadable APK
     runs-on: ubuntu-latest
+
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v7
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
         with:
-          node-version: '22'
-          package-manager-cache: false
-      - uses: actions/setup-java@v6
+          node-version: '20'
+
+      - name: Set up Java 17 (Temurin)
+        uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: '17'
-          cache: 'gradle'
-      - run: npm install
-      - run: npx expo prebuild --platform android --non-interactive --clean
-      - run: chmod +x android/gradlew
-      - working-directory: android
-        run: ./gradlew assembleRelease --no-daemon
-      - run: |
-          SHORT_SHA=$(git rev-parse --short HEAD)
-          cp android/app/build/outputs/apk/release/app-release.apk "vigilpulse-pilot-${SHORT_SHA}.apk"
-      - uses: actions/upload-artifact@v7
+
+      - name: Locate or extract VigilPulse project
+        id: locate
+        run: |
+          echo "=== Repository contents ==="
+          ls -la
+
+          # If a zip archive was uploaded directly, extract it automatically
+          ZIP_FILE=$(find . -maxdepth 2 -name "*.zip" | head -n 1)
+          if [ ! -f "package.json" ] && [ -n "$ZIP_FILE" ]; then
+            echo "Found zip archive: $ZIP_FILE — extracting..."
+            unzip -o "$ZIP_FILE" -d .
+          fi
+
+          # Locate package.json anywhere up to 3 levels deep
+          PKG_PATH=$(find . -maxdepth 3 -name "package.json" -not -path "*/node_modules/*" | head -n 1)
+          if [ -z "$PKG_PATH" ]; then
+            echo "ERROR: package.json not found anywhere in the repository!"
+            echo "Please upload vigilpulse-pilot-repo-v2.zip (or its extracted files) to the main repo."
+            exit 1
+          fi
+
+          PROJ_DIR=$(dirname "$PKG_PATH")
+          echo "Detected project directory: $PROJ_DIR"
+          echo "dir=$PROJ_DIR" >> $GITHUB_OUTPUT
+
+      - name: Install JavaScript dependencies
+        working-directory: ${{ steps.locate.outputs.dir }}
+        run: npm install --legacy-peer-deps
+
+      - name: Generate native Android project (Expo Prebuild)
+        working-directory: ${{ steps.locate.outputs.dir }}
+        run: npx expo prebuild --platform android --non-interactive --clean
+
+      - name: Build standalone Release APK
+        working-directory: ${{ steps.locate.outputs.dir }}/android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleRelease --no-daemon
+
+      - name: Upload downloadable APK artifact
+        uses: actions/upload-artifact@v4
         with:
           name: vigilpulse-pilot-apk
-          path: vigilpulse-pilot-*.apk
+          path: ${{ steps.locate.outputs.dir }}/android/app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
           retention-days: 30
-          archive: false
