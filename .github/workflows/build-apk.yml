@@ -1,0 +1,40 @@
+name: Build VigilPulse Android APK
+
+on:
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-android-apk:
+    name: Compile & Attach Downloadable APK
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '22'
+          package-manager-cache: false
+      - uses: actions/setup-java@v6
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+          cache: 'gradle'
+      - run: npm install
+      - run: npx expo prebuild --platform android --non-interactive --clean
+      - run: chmod +x android/gradlew
+      - working-directory: android
+        run: ./gradlew assembleRelease --no-daemon
+      - run: |
+          SHORT_SHA=$(git rev-parse --short HEAD)
+          cp android/app/build/outputs/apk/release/app-release.apk "vigilpulse-pilot-${SHORT_SHA}.apk"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: vigilpulse-pilot-apk
+          path: vigilpulse-pilot-*.apk
+          if-no-files-found: error
+          retention-days: 30
+          archive: false
